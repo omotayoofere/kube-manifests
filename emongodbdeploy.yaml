@@ -1,0 +1,97 @@
+# The volumeClaimTemplates in statefulsets tells K8s to create a PVC, bind it to a PV, and inject it as a volume for each replica in the STS
+# That way, volumes are not statically binded to a pod.
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: emongo-statefulset
+  namespace: emart-app
+  # annotations:
+  #   argocd.argoproj.io/hook: Sync
+  #   argocd.argoproj.io/sync-wave: "1"
+spec:
+  serviceName: "emongo"
+  selector:
+    matchLabels:
+      app: emongo-pod
+  #serviceName: "emongo"
+  replicas: 1
+  minReadySeconds: 10
+  template:
+    metadata:
+      labels:
+        app: emongo-pod
+    spec:
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 120
+      containers:
+      - name: emongo-container
+        resources:
+          requests:
+            cpu: "0.6"
+            memory: "400Mi"
+          limits:
+            cpu: "0.6"
+            memory: "400Mi"
+        image: mongo:4
+        volumeMounts:
+        - name: mongo-data
+          mountPath: /var/mongo-data
+        env:
+        - name: MONGO_INITDB_DATABASE
+          value: epoc
+        ports:
+        - containerPort: 27017
+          name: emongo-port
+        readinessProbe:
+          tcpSocket:
+            port: emongo-port
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 5
+        livenessProbe:
+          tcpSocket:
+            port: emongo-port
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          failureThreshold: 10
+        startupProbe:
+          tcpSocket:
+            port: emongo-port
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          failureThreshold: 3
+  volumeClaimTemplates: #The claimTemplate would create a claim for each replica
+  - metadata:
+      name: mongo-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: default
+      resources:
+        requests:
+          storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: emongo
+  namespace: emart-app
+spec:
+  #clusterIP: None
+  selector:
+    app: emongo-pod
+  ports:
+  - protocol: TCP
+    port: 27017
+    targetPort: emongo-port
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: emongo-pod-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: emongo-pod

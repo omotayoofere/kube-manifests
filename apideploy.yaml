@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-deploy
+  namespace: emart-app
+  # annotations:
+  #   argocd.argoproj.io/hook: Sync
+  #   argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-pod
+  template:
+    metadata:
+      labels:
+        app: api-pod
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+                - key: type
+                  operator: In
+                  values:
+                  - default_node_pool #custom_node_pool
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: api-pod
+            topologyKey: topology.kubernetes.io/hostname
+      terminationGracePeriodSeconds: 120
+      restartPolicy: Always
+      tolerations:
+      - key: "resource_intensive"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      containers:
+      - name: api-container
+        resources:
+          requests:
+            cpu: "0.2"
+            memory: "100Mi"
+          limits:
+            cpu: "0.2"
+            memory: "100Mi"
+        image: tayofere/nodeapi:16
+        ports:
+        - containerPort: 5000
+          name: api-port
+        readinessProbe:
+          tcpSocket:
+            port: api-port
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 5
+        livenessProbe:
+          tcpSocket:
+            port: api-port
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          failureThreshold: 10
+        startupProbe:
+          tcpSocket:
+            port: api-port
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          failureThreshold: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-svc
+  namespace: emart-app
+spec:
+  selector:
+    app: api-pod
+  ports:
+  - protocol: TCP
+    port: 5000
+    targetPort: api-port
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-pod-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: api-pod

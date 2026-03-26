@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapi-deploy
+  namespace: emart-app
+  # annotations:
+  #   argocd.argoproj.io/hook: Sync
+  #   argocd.argoproj.io/sync-wave: "2"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webapi-pod
+  template:
+    metadata:
+      labels:
+        app: webapi-pod
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+                - key: type
+                  operator: In
+                  values:
+                  - default_node_pool #custom_node_pool
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: webapi-pod
+            topologyKey: topology.kubernetes.io/hostname
+      terminationGracePeriodSeconds: 120
+      restartPolicy: Always
+      tolerations:
+      - key: "resource_intensive"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      containers:
+      - name: webapi-container
+        resources:
+          requests:
+            cpu: "0.5"
+            memory: "600Mi"
+          limits:
+            cpu: "0.5"
+            memory: "600Mi"
+        image: tayofere/javaapi:64
+        ports:
+        - containerPort: 9000
+          name: webapi-port
+        readinessProbe:
+          tcpSocket:
+            port: webapi-port
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 5
+        livenessProbe:
+          tcpSocket:
+            port: webapi-port
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          failureThreshold: 10
+        startupProbe:
+          tcpSocket:
+            port: webapi-port
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 12
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapi-svc
+  namespace: emart-app
+spec:
+  selector:
+    app: webapi-pod
+  ports:
+  - protocol: TCP
+    port: 9000
+    targetPort: webapi-port
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: webapi-pod-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: webapi-pod
+    
