@@ -37,7 +37,7 @@ spec:
       restartPolicy: Always   
       containers:
       - name: client-container
-        image: tayofere/client:16
+        image: ghcr.io/omotayoofere/client-api:sha-1bf357b1d66baebcec65037efe81df5ee756c217
         resources:
           requests:
             cpu: "0.2"
