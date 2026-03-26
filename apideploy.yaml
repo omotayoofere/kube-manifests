@@ -47,7 +47,7 @@ spec:
           limits:
             cpu: "0.2"
             memory: "100Mi"
-        image: tayofere/nodeapi:16
+        image: ghcr.io/omotayoofere/node-api:sha-706869a7ec7f7857150f7f619ecff995b92bcd93
         ports:
         - containerPort: 5000
           name: api-port
